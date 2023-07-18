@@ -1,23 +1,22 @@
 "use client";
 import axios from "axios";
-import { useEffect, useState } from "react";
-import { Todo, UpdateTodo } from "./schema";
+import InputForm from "@/components/InputForm";
+import TodoItem from "@/components/TodoItem";
+import { MouseEvent, useEffect, useState, createContext } from "react";
+import { Todo, UpdateTodo, CreateTodo } from "./schema";
+
+export const TodoContext = createContext<Todo[]>([]);
 
 export default function Home() {
   // setTextでtextを更新。初期値は空で定義
   const [text, setText] = useState<string>("");
   const [date, setDate] = useState<string>("");
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [data, setData] = useState([]);
 
-  // const urls = {
-  //   todos: "http://127.0.0.1:8000/todos",
-  // };
-
-  // //初期画面でTodo一覧を取得
-  // useEffect(() => {
-  //   getTodos();
-  // }, [setTodos]);
+  // 初期画面でTodo一覧を取得
+  useEffect(() => {
+    getTodos();
+  }, []);
 
   //  changeText関数
   const changeText = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,129 +31,151 @@ export default function Home() {
   };
 
   // Todoを取得
-  const getTodos = () => {
-    axios.get("http://127.0.0.1:8000/todos").then((res) => {
-      setTodos(res.data);
-      console.log(todos);
-    });
+  const getTodos = async () => {
+    await axios
+      .get(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/todos`)
+      .then((res) => {
+        setTodos(res.data);
+        console.log(todos);
+      })
+      .catch((error) => {
+        console.log(error);
+      });
   };
+
+  // Todo[]を並べ替え
+  const sortedTodo = todos.sort((a, b) => a.id - b.id);
 
   // Todoを追加
-  const addTodo = async () => {
-    const newTodo: UpdateTodo = {
+  const handleAdd = async (
+    e: MouseEvent<HTMLButtonElement, globalThis.MouseEvent>
+  ) => {
+    e.preventDefault();
+
+    if (!text.trim()) {
+      alert("Todoを入力してください");
+      return;
+    }
+    if (date == "") {
+      alert("期日を選択してください");
+      return;
+    }
+    const newTodo: CreateTodo = {
       content: text,
       deadline: date,
+      checked: false,
     };
-    axios
-      .post("http://127.0.0.1:8000/todos", newTodo)
+    await axios
+      .post(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/todos`, newTodo)
+      .then((res) => {
+        console.log(res);
+        setText("");
+        setDate("");
+        getTodos();
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+  };
+
+  // Todoの編集
+  const handleContent = (id: number, content: string) => {
+    const newTodos = todos.map((todo) => {
+      if (todo.id === id) {
+        todo.content = content;
+      }
+      return todo;
+    });
+    setTodos(newTodos);
+  };
+
+  // deadlineの編集
+  const handleDeadline = (id: number, deadline: string) => {
+    const newTodos = todos.map((todo) => {
+      if (todo.id === id) {
+        todo.deadline = deadline;
+      }
+      return todo;
+    });
+    setTodos(newTodos);
+  };
+
+  // checkedの変更
+  const handleChecked = (id: number, checked: boolean) => {
+    const newTodos = todos.map((todo) => {
+      if (todo.id === id) {
+        todo.checked = !checked;
+      }
+      return todo;
+    });
+    setTodos(newTodos);
+  };
+
+  //  Todoの更新
+  const handleUpdate = async (todo: Todo) => {
+    const newTodo: UpdateTodo = {
+      content: todo.content, //対象のtodoをとってくる
+      deadline: todo.deadline,
+      checked: todo.checked,
+    };
+    await axios
+      .put(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/todos/${todo.id}`, newTodo)
       .then((res) => {
         console.log(res);
       })
       .catch((error) => {
         console.log(error);
       });
-    setText("");
-    setDate("");
   };
-
-  //  Todoの編集
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>, id:number) => {
-    const {value} = e.target;
-    setData(prevData => {
-      const newData = [...prevData];
-      const index = newData.findIndex(item => item.id === id);
-      newData[index].value = value;
-      return newData;
-    });
-  }
 
   //  Todoの削除
-  const deleteTodo = (id: number) => {
+  const handleDelete = async (id: number) => {
     axios
-      .delete("http://127.0.0.1:8000/todos/" + id, { params: { id: id } })
+      .delete(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/todos/${id}`, {
+        params: { id: id },
+      })
       .then((res) => {
         console.log(res);
+        getTodos();
       })
       .catch((error) => {
         console.log(error);
       });
   };
 
-  //  今日の日付を取得
-  const nowDate = new Date();
-  const nowDateTypeString =
-    nowDate.getFullYear() +
-    "-" +
-    ("0" + (nowDate.getMonth() + 1)).slice(-2) +
-    "-" +
-    ("0" + nowDate.getDate()).slice(-2);
-
   return (
-    <div className="index">
-      <main>
-        <h1>Todo</h1>
+    <div className="min-h-screen bg-gradient-to-b from-blue-400 to-indigo-700">
+      <div className="max-w-md mx-auto flex flex-col items-center justify-center pt-20">
+        <main>
+          <h1 className="text-4xl font-bold text-white mb-8">Todo</h1>
 
-        {/* Todo追加 */}
-        <div>
-          <input
-            className="inputText"
-            type="text"
-            value={text}
-            onChange={changeText}
-          />
-          <input
-            className="inputText"
-            type="date"
-            min={nowDateTypeString}
-            value={date}
-            onChange={changeDate}
-          />
-          <button
-            className="submitButton"
-            onClick={() => {
-              if (text == "") {
-                alert("Todoを入力してください");
-              } else if (date == "") {
-                alert("期日を選択してください");
-              } else {
-                addTodo();
-                getTodos();
-              }
-            }}
-          >
-            追加
-          </button>
-        </div>
+          <InputForm
+            text={text}
+            date={date}
+            changeText={changeText}
+            changeDate={changeDate}
+            handleAdd={handleAdd} />
 
-        <div>
-          <ul>
-            {todos.map((todo) => (
-              <li key={todo.id}>
-                <input type="text" value={todo.content} onChange={(e) => handleChange(e, todo.id)} />
-                <input
-                  type="date"
-                  min={nowDateTypeString}
-                  value={todo.deadline}
-                  readOnly
-                />
+          <TodoItem
+            sortedTodo={sortedTodo}
+            handleContent={handleContent}
+            handleUpdate={handleUpdate}
+            handleDeadline={handleDeadline}
+            handleChecked={handleChecked}
+            handleDelete={handleDelete} />
 
-                <button
-                  onClick={() => {
-                    deleteTodo(todo.id);
-                    getTodos();
-                  }}
-                >
-                  ✖
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-500 text-white"
+              onClick={getTodos}
+            >
+              GET Todo
+            </button>
+          </div>
 
-        <div>
-          <button onClick={getTodos}>GET Todo</button>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
